@@ -1,0 +1,676 @@
+#include <DS3231.h>//Memanggil RTC3231 Library
+#include <Wire.h>  // i2C Conection Library
+#include <LiquidCrystal.h> //Libraries
+#include <EEPROM.h>
+
+LiquidCrystal lcd(8, 9, 10, 11, 12, 13); //Arduino pins to lcd
+
+#define bt_clock  2
+#define bt_up     3
+#define bt_down   4
+#define bt_timer  5
+
+#define relay 6
+#define buzzer 7
+
+int led1 = A0;
+int led2 = A1;
+int led3 = A2;
+int led4 = A3;
+
+const int S1=14;    ////////////////M0
+const int S2=15;    ////////////////M1
+const int S3=16;   ////////////////M2
+const int S4=17;   ////////////////M3
+
+int IR1 = A4;
+int IRalert1=0; 
+
+int IR2 = A5;
+int IRalert2=0; 
+
+int IR3 = A6;
+int IRalert3=0; 
+
+int IR4 = A7;
+int IRalert4=0; 
+
+int a1=0;
+int a2=0;
+int a3=0;
+int a4=0;
+int a5=0;
+int a6=0;
+int a7=0;
+int a8=0;
+// Init DS3231
+DS3231  rtc(SDA, SCL);
+
+// Init a Time-data structure
+Time  t; //pencacah string time()
+
+int hh = 0, mm = 0, ss = 0, dd = 0, bb = 0, set_day;
+int yy = 0;
+String Day = "  ";
+
+int StartHH  = 0, StartMM  = 0, FinishHH  = 0, FinishMM  = 0, setMode = 0, setAlarm = 0, alarmMode=1;
+int Start1HH, Start1MM, Finish1HH, Finish1MM;
+int Start2HH, Start2MM, Finish2HH, Finish2MM;
+
+int timer1, timer2, timer3, timer4;
+
+int stop =0, mode=0, flag=0;
+
+
+void initModule(String cmd, char *res, int t)
+{
+while(1)
+{
+Serial1.println(cmd);
+delay(100);
+while(Serial1.available()>0)
+{
+if(Serial1.find(res))
+{
+Serial1.println(res);
+delay(t);
+return;
+}
+else
+{
+Serial1.println("Error");
+}
+}
+delay(t);
+}
+}
+
+void setup(){
+rtc.begin(); // memulai koneksi i2c dengan RTC
+
+Serial1.begin(9600);
+
+pinMode(bt_clock, INPUT_PULLUP);
+pinMode(bt_up,    INPUT_PULLUP);
+pinMode(bt_down,  INPUT_PULLUP);
+pinMode(bt_timer, INPUT_PULLUP);
+
+pinMode(led1, OUTPUT);
+pinMode(led2, OUTPUT);
+pinMode(led3, OUTPUT);
+pinMode(led4, OUTPUT);
+
+pinMode(relay, OUTPUT);
+digitalWrite(relay, LOW);
+pinMode(buzzer, OUTPUT);
+digitalWrite(buzzer, LOW);  
+
+digitalWrite(led1, LOW);
+digitalWrite(led2, LOW);
+digitalWrite(led3, LOW);
+digitalWrite(led4, LOW);
+
+pinMode(S1, OUTPUT);
+pinMode(S2, OUTPUT);
+pinMode(S3, OUTPUT);
+pinMode(S4, OUTPUT);
+
+digitalWrite(S1, HIGH);
+digitalWrite(S2, HIGH);
+digitalWrite(S3, HIGH);
+digitalWrite(S4, HIGH);
+
+pinMode(IR1, INPUT);
+pinMode(IR2, INPUT);
+pinMode(IR3, INPUT);
+pinMode(IR4, INPUT);
+
+
+lcd.begin(16, 2); // Configura lcd numero columnas y filas
+lcd.setCursor(0,0);  //Show "TIME" on the LCD Medicine Reminder System Using Arduino
+lcd.print(" Smart Medicine  ");
+lcd.setCursor (0,1);
+lcd.print(" Reminder System ");
+delay (3000);
+
+lcd.clear();
+lcd.setCursor (0,0);
+lcd.print(" Using Arduino ");
+lcd.setCursor (0,1);
+lcd.print(" WITH DS3231");
+delay (3000);
+
+lcd.clear();
+lcd.setCursor (0,0);
+lcd.print("Real Time Clock ");
+lcd.setCursor (0,1);
+lcd.print("   (RTC)    ");
+delay (3000);
+lcd.clear();
+lcd.setCursor(0,0);lcd.print("Initializing");
+lcd.setCursor(0,1);lcd.print("GSM MODULE");
+delay(1000);
+initModule("AT","OK",1000);
+initModule("AT+CPIN?","READY",1000);
+initModule("AT+CMGF=1","OK",1000);
+lcd.setCursor(0,0);lcd.print("Initialized");
+lcd.setCursor(0,1);lcd.print("Successfully");
+delay(1000);lcd.clear();
+
+lcd.clear();
+digitalWrite(led1, HIGH);digitalWrite(led2, HIGH);
+digitalWrite(led3, HIGH);digitalWrite(led4, HIGH);
+stop=EEPROM.read(50);  
+if(stop==0){  
+}else{
+mode=1;WriteEeprom ();delay (20);
+mode=2;WriteEeprom ();delay (20);
+mode=0;
+}
+EEPROM.write(50,0); 
+
+ReadEeprom();
+//Set RTC Untuk Pertama kali
+//rtc.setDOW(2);     // Set Day-of-Week to SUNDAY
+//rtc.setTime (00, 9, 50); 
+//rtc.setDate(12, 11, 2017);  
+
+}
+
+void loop()
+{  
+st2:
+t = rtc.getTime();
+Day = rtc.getDOWStr(1);
+
+if (setMode == 0){
+hh = t.hour,DEC;
+mm = t.min,DEC;
+ss = t.sec,DEC;
+dd = t.date,DEC;
+bb = t.mon,DEC;
+yy = t.year,DEC;
+//if(t.hour>12){hh=t.hour-12;}// for removing 24 houre
+//else{hh=t.hour;}
+}  
+
+if(setAlarm==0)
+{
+lcd.setCursor(0,0); 
+lcd.print((hh/10)%10);
+lcd.print(hh % 10); 
+lcd.print(":");
+lcd.print((mm/10)%10);
+lcd.print(mm % 10);
+lcd.print(":");
+lcd.print((ss/10)%10);
+lcd.print(ss % 10); 
+lcd.print("  T:"); 
+lcd.print(rtc.getTemp(),0);
+lcd.write(223); 
+lcd.print("C");
+lcd.print("  "); 
+
+lcd.setCursor(1,1);
+lcd.print(Day);
+lcd.print(" ");
+lcd.print((dd/10)%10);
+lcd.print(dd % 10); 
+lcd.print("/");
+lcd.print((bb/10)%10);
+lcd.print(bb % 10);
+lcd.print("/"); 
+lcd.print((yy/1000)%10);
+lcd.print((yy/100)%10);
+lcd.print((yy/10)%10);
+lcd.print(yy % 10);
+
+}
+
+setupClock();
+setTimer();
+delay (100);
+blinking();
+
+//FIRST MEDICINE 1
+if (timer1==1 && alarmMode==1 && hh==Start1HH && mm==Start1MM)  
+{
+a1=a1+1;
+digitalWrite(led1, LOW);digitalWrite(led2, HIGH);digitalWrite(led3, HIGH);digitalWrite(led4, HIGH);
+if(a1==2)
+{
+lcd.setCursor (0,0);lcd.print ("   PLZ TAKE     ");
+lcd.setCursor (0,1);lcd.print (" FIRST Medicine ");
+digitalWrite(S1, LOW);digitalWrite(S2, HIGH);digitalWrite(S3, HIGH);digitalWrite(S4, HIGH);delay(10000);
+digitalWrite(S1, HIGH);digitalWrite(S2, HIGH);digitalWrite(S3, HIGH);digitalWrite(S4, HIGH);delay(2000); 
+IRalert1 = digitalRead(IR1);
+if (IRalert1 == HIGH)
+{
+lcd.clear();lcd.print("Sending SMS..1  ");
+Serial1.println("AT");delay(1000); 
+Serial1.println("AT+CMGF=1");delay(1000); 
+Serial1.println("AT+CMGS=\"8897384951\"\r");delay(1000);
+Serial1.println(" FIRST Medicine");delay(1000);
+Serial1.println(" NOT TAKEN ");delay(1000);
+Serial1.println(" Reminde IT ");delay(100);
+Serial1.write(26);delay(2000);
+lcd.clear();lcd.print(" SMS SENT  ");
+delay(2000);lcd.clear();
+
+lcd.clear();lcd.print("Sending SMS..2  ");
+Serial1.println("AT");delay(1000); 
+Serial1.println("AT+CMGF=1");delay(1000); 
+Serial1.println("AT+CMGS=\"7670873776\"\r");delay(1000);
+Serial1.println(" FIRST Medicine");delay(1000);
+Serial1.println(" NOT TAKEN ");delay(1000);
+Serial1.println(" Reminde IT ");delay(100);
+Serial1.write(26);delay(2000);
+lcd.clear();lcd.print(" SMS SENT  ");
+delay(2000);lcd.clear();
+
+
+goto st2;
+}
+else 
+{
+lcd.setCursor (0,0);lcd.print (" FIRST Medicine ");
+lcd.setCursor (0,1);lcd.print (" TAKEN THANKS   ");
+delay(2000);lcd.clear();goto st2; 
+}
+
+}
+}
+
+//SECOND MEDICINE 2
+if (timer1==1 && alarmMode==1 && hh==Finish1HH && mm==Finish1MM)
+{
+a2=a2+1;
+digitalWrite(led1, HIGH);digitalWrite(led2, LOW);digitalWrite(led3, HIGH);digitalWrite(led4, HIGH);
+if(a2==2)
+{
+lcd.setCursor (0,0);lcd.print ("   PLZ TAKE     ");
+lcd.setCursor (0,1);lcd.print (" SECOND Medicine ");
+digitalWrite(S1, HIGH);digitalWrite(S2, LOW);digitalWrite(S3, HIGH);digitalWrite(S4, HIGH);delay(10000);
+digitalWrite(S1, HIGH);digitalWrite(S2, HIGH);digitalWrite(S3, HIGH);digitalWrite(S4, HIGH);delay(2000);
+IRalert2 = digitalRead(IR2);
+if (IRalert2 == HIGH)
+{
+lcd.clear();lcd.print("Sending SMS..1  ");
+Serial1.println("AT");delay(1000);
+Serial1.println("AT+CMGF=1");delay(1000); 
+Serial1.println("AT+CMGS=\"8897384951\"\r");delay(1000);
+Serial1.println(" SECOND Medicine");delay(1000);
+Serial1.println(" NOT TAKEN ");delay(1000);
+Serial1.println(" Reminde IT ");delay(1000);
+Serial1.write(26);delay(2000);
+lcd.clear();lcd.print(" SMS SENT  ");
+delay(2000);lcd.clear();
+
+lcd.clear();lcd.print("Sending SMS..2  ");
+Serial1.println("AT");delay(1000);
+Serial1.println("AT+CMGF=1");delay(1000); 
+Serial1.println("AT+CMGS=\"7670873776\"\r");delay(1000);
+Serial1.println(" SECOND Medicine");delay(1000);
+Serial1.println(" NOT TAKEN ");delay(1000);
+Serial1.println(" Reminde IT ");delay(1000);
+Serial1.write(26);delay(2000);
+lcd.clear();lcd.print(" SMS SENT  ");
+delay(2000);lcd.clear();
+
+goto st2;
+}
+else 
+{
+lcd.setCursor (0,0);lcd.print (" SECOND Medicine ");
+lcd.setCursor (0,1);lcd.print (" TAKEN THANKS   ");
+delay(2000);lcd.clear();goto st2; 
+} 
+}
+}
+
+//THIRD MEDICINE 3
+if (timer2==1 && alarmMode==1 && hh==Start2HH && mm==Start2MM) 
+{
+a3=a3+1;
+digitalWrite(led1, HIGH);digitalWrite(led2, HIGH);digitalWrite(led3, LOW);digitalWrite(led4, HIGH);
+if(a3==2)
+{
+lcd.setCursor (0,0);lcd.print ("   PLZ TAKE     ");
+lcd.setCursor (0,1);lcd.print (" THIRD Medicine ");
+digitalWrite(S1, HIGH);digitalWrite(S2, HIGH);digitalWrite(S3, LOW);digitalWrite(S4, HIGH);delay(10000); 
+digitalWrite(S1, HIGH);digitalWrite(S2, HIGH);digitalWrite(S3, HIGH);digitalWrite(S4, HIGH);delay(2000); 
+IRalert3 = digitalRead(IR3);
+if (IRalert3 == HIGH)
+{
+lcd.clear();lcd.print("Sending SMS..1 ");
+Serial1.println("AT");delay(1000); 
+Serial1.println("AT+CMGF=1");delay(1000); 
+Serial1.println("AT+CMGS=\"8897384951\"\r");delay(1000);
+Serial1.println(" THIRD Medicine");delay(1000);
+Serial1.println(" NOT TAKEN ");delay(1000);
+Serial1.println(" Reminde IT ");delay(1000);
+Serial1.write(26);delay(2000);
+lcd.clear();lcd.print(" SMS SENT  ");
+delay(2000);lcd.clear();
+
+lcd.clear();lcd.print("Sending SMS..2 ");
+Serial1.println("AT");delay(1000); 
+Serial1.println("AT+CMGF=1");delay(1000); 
+Serial1.println("AT+CMGS=\"7670873776\"\r");delay(1000);
+Serial1.println(" THIRD Medicine");delay(1000);
+Serial1.println(" NOT TAKEN ");delay(1000);
+Serial1.println(" Reminde IT ");delay(1000);
+Serial1.write(26);delay(2000);
+lcd.clear();lcd.print(" SMS SENT  ");
+delay(2000);lcd.clear();
+goto st2;
+}
+else 
+{
+lcd.setCursor (0,0);lcd.print (" THIRD Medicine ");
+lcd.setCursor (0,1);lcd.print (" TAKEN THANKS   ");
+delay(2000);lcd.clear();goto st2; 
+} 
+
+
+}
+}
+
+//FOURTH MEDICINE 4
+if (timer2==1 && alarmMode==1 && hh==Finish2HH && mm==Finish2MM)
+{
+a4=a4+1;
+digitalWrite(led1, HIGH);digitalWrite(led2, HIGH);digitalWrite(led3, HIGH);digitalWrite(led4, LOW);
+if(a4==2)
+{
+lcd.setCursor (0,0);lcd.print ("   PLZ TAKE     ");
+lcd.setCursor (0,1);lcd.print (" FOURTH Medicine");
+digitalWrite(S1, HIGH);digitalWrite(S2, HIGH);digitalWrite(S3, HIGH);digitalWrite(S4, LOW);delay(10000);
+digitalWrite(S1, HIGH);digitalWrite(S2, HIGH);digitalWrite(S3, HIGH);digitalWrite(S4, HIGH);delay(2000);
+IRalert4 = digitalRead(IR4);
+if (IRalert4 == HIGH)
+{
+lcd.clear();lcd.print("Sending SMS..1 ");
+Serial1.println("AT");delay(1000); 
+Serial1.println("AT+CMGF=1");delay(1000); 
+Serial1.println("AT+CMGS=\"8897384951\"\r");delay(1000);
+Serial1.println(" FOURTH Medicine");delay(1000);
+Serial1.println(" NOT TAKEN ");delay(1000);
+Serial1.println(" Reminde IT ");delay(1000);
+Serial1.write(26);delay(2000);
+lcd.clear();lcd.print(" SMS SENT  ");
+delay(2000);lcd.clear();
+
+lcd.clear();lcd.print("Sending SMS..2 ");
+Serial1.println("AT");delay(1000); 
+Serial1.println("AT+CMGF=1");delay(1000); 
+Serial1.println("AT+CMGS=\"7670873776\"\r");delay(1000);
+Serial1.println(" FOURTH Medicine");delay(1000);
+Serial1.println(" NOT TAKEN ");delay(1000);
+Serial1.println(" Reminde IT ");delay(1000);
+Serial1.write(26);delay(2000);
+lcd.clear();lcd.print(" SMS SENT  ");
+delay(2000);lcd.clear();
+
+goto st2;
+}
+else 
+{
+lcd.setCursor (0,0);lcd.print (" FOURTH Medicine");
+lcd.setCursor (0,1);lcd.print (" TAKEN THANKS   ");
+delay(2000);lcd.clear();goto st2; 
+}  
+}
+}
+
+delay (100);
+digitalWrite(buzzer, LOW);
+}
+
+void blinking (){
+//BLINKING SCREEN
+//Set Clock
+if (setAlarm <2 && setMode == 1){lcd.setCursor(0,0);  lcd.print("  ");}
+if (setAlarm <2 && setMode == 2){lcd.setCursor(3,0);  lcd.print("  ");}
+if (setAlarm <2 && setMode == 3){lcd.setCursor(6,0);  lcd.print("  ");}
+if (setAlarm <2 && setMode == 4){lcd.setCursor(1,1);  lcd.print("   ");}
+if (setAlarm <2 && setMode == 5){lcd.setCursor(5,1);  lcd.print("  ");}
+if (setAlarm <2 && setMode == 6){lcd.setCursor(8,1);  lcd.print("  ");}
+if (setAlarm <2 && setMode == 7){lcd.setCursor(11,1); lcd.print("    "); }
+
+//Set Timer
+if (setMode == 0 && setAlarm == 1 && mode==0){lcd.setCursor(2,1); lcd.print("  "); }
+if (setMode == 0 && setAlarm == 2 && mode==0){lcd.setCursor(6,1); lcd.print("  "); }
+if (setMode == 0 && setAlarm == 3 && mode==0){lcd.setCursor(10,1); lcd.print("  "); }
+if (setMode == 0 && setAlarm == 4 && mode==0){lcd.setCursor(13,1); lcd.print("  "); }
+
+if (setMode == 0 && setAlarm == 1 && mode>0){lcd.setCursor(11,0); lcd.print("  "); }
+if (setMode == 0 && setAlarm == 2 && mode>0){lcd.setCursor(14,0); lcd.print("  "); }
+if (setMode == 0 && setAlarm == 3 && mode>0){lcd.setCursor(11,1); lcd.print("  "); }
+if (setMode == 0 && setAlarm == 4 && mode>0){lcd.setCursor(14,1); lcd.print("  "); }
+}
+
+//Seting Jam ,Tanggal,Alarm/Timer
+void setupClock (void)
+{
+if (setMode == 8)
+{
+lcd.setCursor (0,0);
+lcd.print ("Set Time Finish ");
+lcd.setCursor (0,1);
+lcd.print ("Set Date Finish ");
+delay (1000);
+rtc.setTime (hh, mm, ss);
+rtc.setDate (dd, bb, yy);  
+lcd.clear();
+setMode = 0;
+}
+    
+if (setAlarm >0){alarmMode=0;}
+  
+ if(digitalRead (bt_clock) == 0 && flag==0)
+ {flag=1;
+ if(setAlarm>0){WriteEeprom(); setAlarm=1; mode =3;}
+ else{setMode = setMode+1;}
+ digitalWrite(buzzer, HIGH);
+ }
+  
+ if(digitalRead (bt_timer) == 0 && flag==0)
+ {flag=1;
+ if(setMode>0){setMode=8;}
+  else{
+  setAlarm = setAlarm+1;
+  if(setAlarm>4){setAlarm=1; 
+  WriteEeprom ();
+  mode=mode+1;
+  ReadEeprom();
+  }
+  } 
+  lcd.clear();
+  digitalWrite(buzzer, HIGH);
+  } 
+
+    if(setAlarm == 1 && mode==3){
+    lcd.setCursor (0,0);
+    lcd.print ("Set Timer Finish");
+    lcd.setCursor (0,1);
+    lcd.print ("-EEPROM Updated-");
+    delay (2000); 
+    lcd.clear();
+    setAlarm=0;
+    mode =0;
+    alarmMode=1;
+    }
+
+if(digitalRead (bt_clock) == 1 && digitalRead (bt_timer) == 1){flag=0;}
+  
+ if(digitalRead (bt_up) == 0)
+ {                          
+if (setAlarm<2 && setMode==1)hh=hh+1; 
+if (setAlarm<2 && setMode==2)mm=mm+1;
+if (setAlarm<2 && setMode==3)ss=ss+1;
+if (setAlarm<2 && setMode==4)set_day=set_day+1;
+if (setAlarm<2 && setMode==5)dd=dd+1;
+if (setAlarm<2 && setMode==6)bb=bb+1;
+if (setAlarm<2 && setMode==7)yy=yy+1;
+            
+//Timer
+if (mode==0 && setMode==0 && setAlarm==1)timer1=1;
+if (mode==0 && setMode==0 && setAlarm==2)timer2=1;
+if (mode==0 && setMode==0 && setAlarm==3)timer3=1;
+if (mode==0 && setMode==0 && setAlarm==4)timer4=1;
+             
+if (mode>0 && setMode==0 && setAlarm==1)StartHH=StartHH+1;
+if (mode>0 && setMode==0 && setAlarm==2)StartMM=StartMM+1;
+if (mode>0 && setMode==0 && setAlarm==3)FinishHH=FinishHH+1;
+if (mode>0 && setMode==0 && setAlarm==4)FinishMM=FinishMM+1;
+
+if(hh>23)hh=0;
+if(mm>59)mm=0;
+if(ss>59)ss=0;
+if(set_day>7)set_day=0;
+if(dd>31)dd=0;
+if(bb>12)bb=0;
+if(yy>2030)yy=2000;
+if(StartHH>23)StartHH=0;
+if(StartMM>59)StartMM=0;
+if(FinishHH>23)FinishHH=0;
+if(FinishMM>59)FinishMM=0;
+rtc.setDOW(set_day);
+digitalWrite(buzzer, HIGH);
+ }        
+
+if(digitalRead (bt_down) == 0)
+{                                      
+if (setAlarm<2 && setMode==1)hh=hh-1; 
+if (setAlarm<2 && setMode==2)mm=mm-1;
+if (setAlarm<2 && setMode==3)ss=ss-1;
+if (setAlarm<2 && setMode==4)set_day=set_day-1;
+if (setAlarm<2 && setMode==5)dd=dd-1;
+if (setAlarm<2 && setMode==6)bb=bb-1;
+if (setAlarm<2 && setMode==7)yy=yy-1;
+
+//Timer
+if (mode==0 && setMode==0 && setAlarm==1)timer1=0;
+if (mode==0 && setMode==0 && setAlarm==2)timer2=0;
+if (mode==0 && setMode==0 && setAlarm==3)timer3=0;
+if (mode==0 && setMode==0 && setAlarm==4)timer4=0;
+
+if (mode>0 && setMode==0 && setAlarm==1)StartHH=StartHH-1;
+if (mode>0 && setMode==0 && setAlarm==2)StartMM=StartMM-1;
+if (mode>0 && setMode==0 && setAlarm==3)FinishHH=FinishHH-1;
+if (mode>0 && setMode==0 && setAlarm==4)FinishMM=FinishMM-1;
+
+if(hh<0)hh=23;
+if(mm<0)mm=59;
+if(ss<0)ss=59;
+if(set_day<0)set_day=7;
+if(dd<0)dd=31;
+if(bb<0)bb=12;
+if(yy<0)yy=2030;
+if(StartHH<0)StartHH=23;
+if(StartMM<0)StartMM=59;
+if(FinishHH<0)FinishHH=23;
+if(FinishMM<0)FinishMM=59;
+rtc.setDOW(set_day);
+digitalWrite(buzzer, HIGH); 
+ }
+ 
+}
+
+void setTimer (){
+//Timer
+if (setMode == 0 && setAlarm >0 && mode>0)
+{
+if(mode==1)
+{
+lcd.setCursor (0,0);
+lcd.print("1st TAB");
+//lcd.print(mode);
+//lcd.print(" On :");
+lcd.setCursor (11,0);
+lcd.print((StartHH/10)%10);
+lcd.print(StartHH % 10);
+lcd.print(":");
+lcd.print((StartMM/10)%10);
+lcd.print(StartMM % 10);
+
+lcd.setCursor (0,1);
+lcd.print("2ND TAB");
+// lcd.print(mode);
+// lcd.print(" Off:");
+lcd.setCursor (11,1);
+lcd.print((FinishHH/10)%10);
+lcd.print(FinishHH % 10);
+lcd.print(":");
+lcd.print((FinishMM/10)%10);
+lcd.print(FinishMM % 10);
+}
+
+if(mode==2)
+{
+lcd.setCursor (0,0);
+lcd.print("3RD TAB");
+//lcd.print(mode);
+//lcd.print(" On :");
+lcd.setCursor (11,0);
+lcd.print((StartHH/10)%10);
+lcd.print(StartHH % 10);
+lcd.print(":");
+lcd.print((StartMM/10)%10);
+lcd.print(StartMM % 10);
+
+lcd.setCursor (0,1);
+lcd.print("4TH TAB");
+// lcd.print(mode);
+// lcd.print(" Off:");
+lcd.setCursor (11,1);
+lcd.print((FinishHH/10)%10);
+lcd.print(FinishHH % 10);
+lcd.print(":");
+lcd.print((FinishMM/10)%10);
+lcd.print(FinishMM % 10);
+}
+
+}
+
+if (setMode == 0 && setAlarm >0 && mode==0)
+{
+lcd.setCursor (0,0);
+lcd.print(" T1  T2  T3  T4 ");
+lcd.setCursor (0,1);
+
+if(timer1==1){lcd.print("  A");}
+else{lcd.print("  P");}
+
+if(timer2==1){lcd.print("   A");}
+else{lcd.print("   P");}
+  
+if(timer3==1){lcd.print("   A");}
+else{lcd.print("   P");}
+
+if(timer4==1){lcd.print("   A");}
+else{lcd.print("   P");}
+}
+}
+
+void ReadEeprom() 
+{
+Start1HH=EEPROM.read(11);Start1MM=EEPROM.read(12);Finish1HH=EEPROM.read(13);Finish1MM=EEPROM.read(14);
+Start2HH=EEPROM.read(21);Start2MM=EEPROM.read(22);Finish2HH=EEPROM.read(23);Finish2MM=EEPROM.read(24);
+
+if(mode==1){StartHH=Start1HH, StartMM=Start1MM, FinishHH=Finish1HH,FinishMM=Finish1MM;}
+if(mode==2){StartHH=Start2HH, StartMM=Start2MM, FinishHH=Finish2HH,FinishMM=Finish2MM;}
+
+timer1=EEPROM.read(1);
+timer2=EEPROM.read(2);
+}
+
+void WriteEeprom()
+{
+if(mode==1){EEPROM.write(11,StartHH);EEPROM.write(12,StartMM);EEPROM.write(13,FinishHH);EEPROM.write(14,FinishMM);}
+if(mode==2){EEPROM.write(21,StartHH);EEPROM.write(22,StartMM);EEPROM.write(23,FinishHH);EEPROM.write(24,FinishMM);}
+
+EEPROM.write(1,timer1);
+EEPROM.write(2,timer2);
+}
